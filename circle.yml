@@ -1,0 +1,13 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: ubuntu:zesty
+    steps:
+      - run: apt-get update
+      - run: apt-get -y install build-essential cmake libev-dev libgtest-dev
+      - run: mkdir -p /tmp/build && cd /tmp/build && cmake /usr/src/gtest && make && make install
+      - checkout
+      - run: ./run-test.sh
+

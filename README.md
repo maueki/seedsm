@@ -1,5 +1,7 @@
 # SEEDS
 
+[![CircleCI](https://circleci.com/gh/maueki/seeds.svg?style=svg)](https://circleci.com/gh/maueki/seeds)
+
 ## About
 
 SEEDS(Simple and Easy Event Driven State machine) is a C++ header only state machine library based on [libev](http://software.schmorp.de/pkg/libev.html).
