@@ -23,8 +23,8 @@ struct StateMachine : protected State {
         : State(name)
         , loop_(loop)
         , states_()
-        , send_event_(std::make_unique<ev::async>(loop))
-        , init_event_(std::make_unique<ev::async>(loop)) {
+        , send_event_(std::unique_ptr<ev::async>(new ev::async(loop)))
+        , init_event_(std::unique_ptr<ev::async>(new ev::async(loop))) {
         send_event_->set<StateMachine, &StateMachine::received>(this);
         init_event_->set<StateMachine, &StateMachine::initialize>(this);
     }
