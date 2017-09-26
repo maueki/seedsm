@@ -65,8 +65,26 @@ struct StateMachine : protected State {
         send_event_->send();
     }
 
+    template <EVENT_ID E, typename... Args>
+    void send_high(Args&&... args) {
+        auto event = event_class<E>::create(std::forward<Args>(args)...);
+        post_high_event(event);
+    }
+
+    void post_high_event(EventBase* ev) {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        high_event_queue_.push(ev);
+        send_event_->send();
+    }
+
     EventBase* pop_event() {
         std::unique_lock<std::mutex> lock(queue_mutex_);
+        if (!high_event_queue_.empty()) {
+            auto ev = high_event_queue_.front();
+            high_event_queue_.pop();
+            return ev;
+        }
+
         if (event_queue_.empty()) return nullptr;
 
         auto ev = event_queue_.front();
@@ -219,6 +237,7 @@ private:
     std::unique_ptr<ev::async> send_event_;
     std::mutex queue_mutex_;
     std::queue<EventBase*> event_queue_;
+    std::queue<EventBase*> high_event_queue_;
 
     void create_state(State* parent, STATE_ID child) {
         assert(states_.count(child) == 0);

@@ -1,6 +1,6 @@
 # SEEDS
 
-[![CircleCI](https://circleci.com/gh/maueki/seeds.svg?style=svg)](https://circleci.com/gh/maueki/seeds)
+[![CircleCI](https://circleci.com/gh/maueki/seeds.svg?style=shield)](https://circleci.com/gh/maueki/seeds)
 
 ## About
 
@@ -39,6 +39,6 @@ MIT
 
 ## TODO
 
-* parallel state
-* high priority event
-* history
+- [ ] parallel state
+- [x] high priority event
+- [ ] history
