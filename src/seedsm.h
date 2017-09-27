@@ -18,11 +18,30 @@
 
 #ifndef SEEDSM_LOG_HANDLER
 #define SEEDSM_LOG_HANDLER(fmt, arg) \
-    {                               \
-        vfprintf(stderr, fmt, arg); \
-        fprintf(stderr, "\n");      \
+    {                                \
+        vfprintf(stderr, fmt, arg);  \
+        fprintf(stderr, "\n");       \
     }
 #endif
+
+#define DEFINE_EVENT(EVENT)                                             \
+    template <>                                                         \
+    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {    \
+        using EVENT_CLASS = seedsm::EventImpl<decltype(EVENT), EVENT>;  \
+        static seedsm::EventBase* create() {                            \
+            return seedsm::EventImpl<decltype(EVENT), EVENT>::create(); \
+        }                                                               \
+    };
+
+#define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                          \
+    template <>                                                          \
+    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {     \
+        using EVENT_CLASS =                                              \
+            seedsm::EventImplWithData<decltype(EVENT), EVENT, DATATYPE>; \
+        static seedsm::EventBase* create(const DATATYPE& arg) {          \
+            return EVENT_CLASS::create(arg);                             \
+        }                                                                \
+    };
 
 // workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56480
 template <typename EVENT, int EVENT_NO>
@@ -30,16 +49,14 @@ struct _EventCreator {};
 
 namespace seedsm {
 
-__attribute__((format(printf, 1, 2)))
-static void log(const char* fmt, ...) {
+__attribute__((format(printf, 1, 2))) static void log(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     SEEDSM_LOG_HANDLER(fmt, ap);
     va_end(ap);
 }
 
-__attribute__((format(printf, 1, 2)))
-static void abort(const char* fmt, ...) {
+__attribute__((format(printf, 1, 2))) static void abort(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     SEEDSM_LOG_HANDLER(fmt, ap);
@@ -55,7 +72,8 @@ class Event : public EventBase {
     std::function<void()> on_delete_fn_;
 
 public:
-    Event(EVENT_ENUM event_type) : event_type_(event_type) {}
+    Event(EVENT_ENUM event_type)
+        : event_type_(event_type) {}
 
     ~Event() {
         if (on_delete_fn_) on_delete_fn_();
@@ -68,7 +86,8 @@ public:
 
 template <typename EVENT_ENUM, EVENT_ENUM EVENT>
 class EventImpl : public Event<EVENT_ENUM> {
-    EventImpl() : Event<EVENT_ENUM>(EVENT) {}
+    EventImpl()
+        : Event<EVENT_ENUM>(EVENT) {}
 
 public:
     using callback_type = std::function<void()>;
@@ -79,19 +98,11 @@ public:
     void exec(callback_type fn) { fn(); }
 };
 
-#define DEFINE_EVENT(EVENT)                                                \
-    template <>                                                            \
-    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> { \
-        using EVENT_CLASS = seedsm::EventImpl<decltype(EVENT), EVENT>;      \
-        static seedsm::EventBase* create() {                                \
-            return seedsm::EventImpl<decltype(EVENT), EVENT>::create();     \
-        }                                                                  \
-    };
-
 template <typename EVENT_ENUM, EVENT_ENUM EVENT, typename DATATYPE>
 class EventImplWithData : public Event<EVENT_ENUM> {
     EventImplWithData(const DATATYPE& data)
-        : Event<EVENT_ENUM>(EVENT), data(data) {}
+        : Event<EVENT_ENUM>(EVENT)
+        , data(data) {}
 
 public:
     const DATATYPE data;
@@ -105,16 +116,6 @@ public:
     void exec(callback_type fn) { fn(data); }
 };
 
-#define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                            \
-    template <>                                                            \
-    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> { \
-        using EVENT_CLASS =                                                \
-            seedsm::EventImplWithData<decltype(EVENT), EVENT, DATATYPE>;    \
-        static seedsm::EventBase* create(const DATATYPE& arg) {             \
-            return EVENT_CLASS::create(arg);                               \
-        }                                                                  \
-    };
-
 template <typename EVENT, typename EVENT_ENUM>
 inline EVENT* event_cast(Event<EVENT_ENUM>* ev) {
     if (ev->EventType() == static_cast<EVENT_ENUM>(EVENT::event_type)) {
@@ -126,7 +127,8 @@ inline EVENT* event_cast(Event<EVENT_ENUM>* ev) {
 
 struct State {
     State(const std::string& name, State* parent = nullptr)
-        : name_(name), parent_(parent) {
+        : name_(name)
+        , parent_(parent) {
         if (parent) {
             parent->add_child(this);
         }
@@ -149,7 +151,7 @@ struct State {
         do_enter_callback(event);
 
         if (is_parallel_) {
-            for (auto&& child: children_) {
+            for (auto&& child : children_) {
                 child->enter(event);
             }
             active_child_ = nullptr;
@@ -170,7 +172,7 @@ struct State {
         }
 
         if (is_parallel_) {
-            for(auto&& child: children_) {
+            for (auto&& child : children_) {
                 assert(child->is_active());
                 child->exit(event);
             }
@@ -214,9 +216,7 @@ struct State {
         is_parallel_ = is_par;
     }
 
-    bool is_parallel() const {
-        return is_parallel_;
-    }
+    bool is_parallel() const { return is_parallel_; }
 
 private:
     void add_child(State* child) {
@@ -257,21 +257,21 @@ private:
     State* parent_;
     bool is_active_ = false;
     std::list<State*> children_;
-    State* active_child_ = nullptr; // not used in parallel state
+    State* active_child_ = nullptr;  // not used in parallel state
     bool is_parallel_ = false;
 
     std::list<std::function<void()>> on_entered_callbacks_;
     std::list<std::function<void()>> on_exited_callbacks_;
-
 };
 
 struct Transition {
     Transition(State* source = nullptr, State* target = nullptr)
-        : source_(source), target_(target) {}
+        : source_(source)
+        , target_(target) {}
 
     // virtual bool event_test(Event* ev) = 0;
 
-    virtual ~Transition(){}
+    virtual ~Transition() {}
 
     State* source_state() { return source_; }
     const State* source_state() const { return source_; }
@@ -289,7 +289,8 @@ private:
 template <typename EVENT_CLASS>
 struct TransitionImpl : public Transition {
     explicit TransitionImpl(State* source = nullptr, State* target = nullptr)
-        : Transition(source, target), func_list_() {}
+        : Transition(source, target)
+        , func_list_() {}
 
     void on_transition(typename EVENT_CLASS::callback_type fn) {
         func_list_.push_back(fn);
@@ -339,15 +340,15 @@ struct StateMachine : protected State {
     }
 
     ~StateMachine() {
-        for (auto&& trans: transitions_) {
+        for (auto&& trans : transitions_) {
             delete trans.second;
         }
 
-        for (auto&& ev: event_queue_) {
+        for (auto&& ev : event_queue_) {
             delete ev;
         }
 
-        for (auto&& ev: high_event_queue_) {
+        for (auto&& ev : high_event_queue_) {
             delete ev;
         }
     }
@@ -364,9 +365,7 @@ struct StateMachine : protected State {
         }
     }
 
-    void set_parallel(bool is_par) {
-        this->set_parallel(is_par);
-    }
+    void set_parallel(bool is_par) { this->set_parallel(is_par); }
 
     void set_parallel(STATE_ID st, bool is_par) {
         state(st)->set_parallel(is_par);
@@ -390,16 +389,53 @@ struct StateMachine : protected State {
         post_event(event);
     }
 
-    void post_event(EventBase* ev) {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
-        event_queue_.push_back(ev);
-        send_event_->send();
-    }
-
     template <EVENT_ID E, typename... Args>
     void send_high(Args&&... args) {
         auto event = event_class<E>::create(std::forward<Args>(args)...);
         post_high_event(event);
+    }
+
+    void on_state_entered(STATE_ID st, std::function<void()> fn) {
+        state(st)->on_entered(fn);
+    }
+
+    void on_state_exited(STATE_ID st, std::function<void()> fn) {
+        state(st)->on_exited(fn);
+    }
+
+    template <EVENT_ID EVENT>
+    void add_transition(STATE_ID source) {
+        assert(transitions_.count({state(source), EVENT}) == 0);
+
+        auto tran =
+            new TransitionImpl<event_class<EVENT>>(state(source), nullptr);
+        transitions_[{state(source), EVENT}] = tran;
+    }
+
+    template <EVENT_ID EVENT>
+    void add_transition(STATE_ID source, STATE_ID target) {
+        assert(transitions_.count({state(source), EVENT}) == 0);
+
+        auto tran = new TransitionImpl<event_class<EVENT>>(state(source),
+                                                           state(target));
+        transitions_[{state(source), EVENT}] = tran;
+    }
+
+    template <EVENT_ID EVENT>
+    void on_transition(STATE_ID source,
+                       typename event_class<EVENT>::callback_type fn) {
+        assert(transitions_.count({state(source), EVENT}) == 1);
+
+        auto trans = static_cast<TransitionImpl<event_class<EVENT>>*>(
+            transitions_[{state(source), EVENT}]);
+        trans->on_transition(fn);
+    }
+
+private:
+    void post_event(EventBase* ev) {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        event_queue_.push_back(ev);
+        send_event_->send();
     }
 
     void post_high_event(EventBase* ev) {
@@ -510,14 +546,6 @@ struct StateMachine : protected State {
         enter(nullptr);
     }
 
-    void on_state_entered(STATE_ID st, std::function<void()> fn) {
-        state(st)->on_entered(fn);
-    }
-
-    void on_state_exited(STATE_ID st, std::function<void()> fn) {
-        state(st)->on_exited(fn);
-    }
-
     State* state(STATE_ID st) {
         // TODO: return const_cast<State*>(static_cast<const
         // StateMachine*>(this)->state(st));
@@ -529,34 +557,6 @@ struct StateMachine : protected State {
         // TODO: return state_impl(st);
         assert(states_.count(st) == 1);
         return states_[st];
-    }
-
-    template <EVENT_ID EVENT>
-    void add_transition(STATE_ID source) {
-        assert(transitions_.count({state(source), EVENT}) == 0);
-
-        auto tran = new TransitionImpl<event_class<EVENT>>(state(source),
-                                                           nullptr);
-        transitions_[{state(source), EVENT}] = tran;
-    }
-
-    template <EVENT_ID EVENT>
-    void add_transition(STATE_ID source, STATE_ID target) {
-        assert(transitions_.count({state(source), EVENT}) == 0);
-
-        auto tran = new TransitionImpl<event_class<EVENT>>(state(source),
-                                                           state(target));
-        transitions_[{state(source), EVENT}] = tran;
-    }
-
-    template <EVENT_ID EVENT>
-    void on_transition(STATE_ID source,
-                       typename event_class<EVENT>::callback_type fn) {
-        assert(transitions_.count({state(source), EVENT}) == 1);
-
-        auto trans = static_cast<TransitionImpl<event_class<EVENT>>*>(
-            transitions_[{state(source), EVENT}]);
-        trans->on_transition(fn);
     }
 
 private:

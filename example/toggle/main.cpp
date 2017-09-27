@@ -13,8 +13,7 @@ struct MyStateMachine : public StateMachine<Policy> {
     using ST = Policy::STATE;
     using EV = Policy::EVENT;
 
-    MyStateMachine(ev::loop_ref loop)
-        : StateMachine("Root", loop) {
+    MyStateMachine(ev::loop_ref loop) : StateMachine("Root", loop) {
         create_states({ST::INIT, ST::ON, ST::OFF, ST::FIN});
 
         add_transition<EV::INIT_COMP>(ST::INIT, ST::OFF);
@@ -30,9 +29,8 @@ struct MyStateMachine : public StateMachine<Policy> {
                          [] { std::cout << "ST::ON entered" << std::endl; });
         on_state_entered(ST::FIN, [this] { stop(); });
 
-        on_transition<EV::TOGGLE>(ST::ON,
-                                  [this](const std::string& ev_msg) {
-            std::cout << "ST::ON receive EV::TOGGLE: msg = " << ev_msg.c_str()
+        on_transition<EV::TOGGLE>(ST::ON, [this](const std::string& ev_msg) {
+            std::cout << "ST::ON receive EV::TOGGLE: msg = " << ev_msg
                       << std::endl;
         });
     }
