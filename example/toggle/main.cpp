@@ -4,7 +4,7 @@
 #include <ev++.h>
 #include <signal.h>
 
-#include "statemachine.h"
+#include "seedsm.h"
 #include "policy.h"
 
 using namespace seedsm;
