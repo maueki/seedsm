@@ -13,7 +13,7 @@
     }
 #endif
 
-namespace seeds {
+namespace seedsm {
 
 __attribute__((format(printf, 1, 2)))
 static void log(const char* fmt, ...) {
@@ -32,5 +32,5 @@ static void abort(const char* fmt, ...) {
     ::abort();
 }
 
-}  // seeds
+}  // seedsm
 

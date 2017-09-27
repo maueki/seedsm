@@ -8,7 +8,7 @@
 #include <future>
 #include <memory>
 
-namespace seeds {
+namespace seedsm {
 
 template <typename STATE_POLICY>
 struct StateMachine : protected State {
@@ -259,4 +259,4 @@ private:
     }
 };
 
-}  // seeds
+}  // seedsm

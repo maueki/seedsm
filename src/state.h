@@ -11,7 +11,7 @@
 #include "event.h"
 #include "log.h"
 
-namespace seeds {
+namespace seedsm {
 
 struct State {
     State(const std::string& name, State* parent = nullptr)
@@ -154,4 +154,4 @@ private:
 
 };
 
-}  // namespace seeds
+}  // namespace seedsm

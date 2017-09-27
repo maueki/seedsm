@@ -8,7 +8,7 @@
 #include "policy.h"
 #include "log.h"
 
-using namespace seeds;
+using namespace seedsm;
 
 struct MyStateMachine : public StateMachine<Policy> {
     using ST = Policy::state_id_t;

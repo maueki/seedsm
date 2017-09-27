@@ -3,7 +3,7 @@
 #include "event.h"
 #include "log.h"
 
-namespace seeds {
+namespace seedsm {
 
 struct State;
 
@@ -59,4 +59,4 @@ private:
     std::list<typename EVENT_CLASS::callback_type> failed_func_list_;
 };
 
-}  // seeds
+}  // seedsm

@@ -26,7 +26,7 @@ class Test : public testing::Test {
 
 namespace {
 
-struct SM1 : public seeds::StateMachine<Policy1> {
+struct SM1 : public seedsm::StateMachine<Policy1> {
     using ST = Policy1::state_id_t;
     using EV = Policy1::event_id_t;
 
@@ -81,7 +81,7 @@ DEFINE_EVENT(PolicyPri::TO_C);
 
 namespace {
 
-struct SMPri : public seeds::StateMachine<PolicyPri> {
+struct SMPri : public seedsm::StateMachine<PolicyPri> {
     using ST = PolicyPri::state_id_t;
     using EV = PolicyPri::event_id_t;
 
@@ -128,7 +128,7 @@ DEFINE_EVENT(PolicyPar::TO_C);
 
 namespace {
 
-struct SMPar : public seeds::StateMachine<PolicyPar> {
+struct SMPar : public seedsm::StateMachine<PolicyPar> {
     using ST = PolicyPar::state_id_t;
     using EV = PolicyPar::event_id_t;
 

@@ -6,7 +6,7 @@
 template <typename EVENT, int EVENT_NO>
 struct _EventCreator {};
 
-namespace seeds {
+namespace seedsm {
 
 class EventBase {};
 
@@ -43,9 +43,9 @@ public:
 #define DEFINE_EVENT(EVENT)                                                \
     template <>                                                            \
     struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> { \
-        using EVENT_CLASS = seeds::EventImpl<decltype(EVENT), EVENT>;      \
-        static seeds::EventBase* create() {                                \
-            return seeds::EventImpl<decltype(EVENT), EVENT>::create();     \
+        using EVENT_CLASS = seedsm::EventImpl<decltype(EVENT), EVENT>;      \
+        static seedsm::EventBase* create() {                                \
+            return seedsm::EventImpl<decltype(EVENT), EVENT>::create();     \
         }                                                                  \
     };
 
@@ -70,8 +70,8 @@ public:
     template <>                                                            \
     struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> { \
         using EVENT_CLASS =                                                \
-            seeds::EventImplWithData<decltype(EVENT), EVENT, DATATYPE>;    \
-        static seeds::EventBase* create(const DATATYPE& arg) {             \
+            seedsm::EventImplWithData<decltype(EVENT), EVENT, DATATYPE>;    \
+        static seedsm::EventBase* create(const DATATYPE& arg) {             \
             return EVENT_CLASS::create(arg);                               \
         }                                                                  \
     };
@@ -85,4 +85,4 @@ inline EVENT* event_cast(Event<EVENT_ENUM>* ev) {
     return nullptr;
 }
 
-}  // seeds
+}  // seedsm
