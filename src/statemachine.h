@@ -41,6 +41,14 @@ struct StateMachine : protected State {
         }
     }
 
+    void set_parallel(bool is_par) {
+        this->set_parallel(is_par);
+    }
+
+    void set_parallel(STATE_ID st, bool is_par) {
+        state(st)->set_parallel(is_par);
+    }
+
     void start() {
         init_event_->start();
         init_event_->send();

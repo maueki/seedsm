@@ -111,3 +111,69 @@ TEST_F(Test, TestPriority) {
 }
 
 }
+
+struct PolicyPar {
+    enum state_id_t { A, A1, A2, B, B1, B2, C };
+    enum event_id_t { TO_A, TO_B, TO_C };
+};
+
+DEFINE_EVENT(PolicyPar::TO_A);
+DEFINE_EVENT(PolicyPar::TO_B);
+DEFINE_EVENT(PolicyPar::TO_C);
+
+namespace {
+
+struct SMPar : public seeds::StateMachine<PolicyPar> {
+    using ST = PolicyPar::state_id_t;
+    using EV = PolicyPar::event_id_t;
+
+    SMPar(ev::loop_ref loop)
+        : StateMachine("Root", loop) {
+
+        create_states({ST::A, ST::B, ST::C});
+
+        create_states(ST::A, {ST::A1, ST::A2});
+        set_parallel(ST::A, true);
+
+        create_states(ST::B, {ST::B1, ST::B2});
+
+        add_transition<EV::TO_B>(ST::A, ST::B);
+        add_transition<EV::TO_C>(ST::B, ST::C);
+        add_transition<EV::TO_A>(ST::B, ST::A);
+
+        on_state_entered(ST::C, [this] { stop(); });
+
+        for(auto&& st: {ST::A1, ST::A2, ST::B1, ST::B2}) {
+            on_state_entered(st, [this, st] {
+                    enter_cnt[st]++;
+                });
+        }
+
+    }
+
+    std::map<ST, int> enter_cnt = {{ST::A1, 0}, {ST::A2, 0}, {ST::B1,0}, {ST::B2, 0}};
+
+};
+
+TEST_F(Test, TestParallel) {
+    using ST = PolicyPar::state_id_t;
+    using EV = PolicyPar::event_id_t;
+
+    ev::dynamic_loop loop;
+    SMPar sm(loop);
+
+    sm.start();
+    sm.send<EV::TO_B>();
+    sm.send<EV::TO_A>();
+    sm.send<EV::TO_B>();
+    sm.send<EV::TO_C>();
+
+    loop.run(0);
+
+    EXPECT_EQ(2, sm.enter_cnt[ST::A1]);
+    EXPECT_EQ(2, sm.enter_cnt[ST::A2]);
+    EXPECT_EQ(2, sm.enter_cnt[ST::B1]);
+    EXPECT_EQ(0, sm.enter_cnt[ST::B2]);
+}
+
+}

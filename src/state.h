@@ -28,6 +28,8 @@ struct State {
     }
 
     void enter(EventBase* event) {
+        assert(!is_active_);
+
         if (parent_) parent_->enter_child(event, this);
 
         log("enter state: %s", name_.c_str());
@@ -35,16 +37,32 @@ struct State {
 
         do_enter_callback(event);
 
-        if (!children_.empty()) {
-            active_child_ = children_.front();
-            active_child_->enter(event);
+        if (is_parallel_) {
+            for (auto&& child: children_) {
+                child->enter(event);
+            }
+            active_child_ = nullptr;
+        } else {
+            if (!children_.empty()) {
+                active_child_ = children_.front();
+                active_child_->enter(event);
+            }
         }
     }
 
     void exit(EventBase* event) {
+        assert(is_active_);
+
         if (active_child_) {
             active_child_->exit(event);
             active_child_ = nullptr;
+        }
+
+        if (is_parallel_) {
+            for(auto&& child: children_) {
+                assert(child->is_active());
+                child->exit(event);
+            }
         }
 
         log("exit state: %s", name_.c_str());
@@ -80,6 +98,15 @@ struct State {
         on_exited_callbacks_.push_back(fn);
     }
 
+    void set_parallel(bool is_par) {
+        assert(!is_active_);
+        is_parallel_ = is_par;
+    }
+
+    bool is_parallel() const {
+        return is_parallel_;
+    }
+
 private:
     void add_child(State* child) {
         if (!child) return;
@@ -98,7 +125,6 @@ private:
             fn();
         }
     }
-
 
     void enter_child(EventBase* event, State* child) {
         active_child_ = child;
@@ -120,7 +146,8 @@ private:
     State* parent_;
     bool is_active_ = false;
     std::list<State*> children_;
-    State* active_child_ = nullptr;
+    State* active_child_ = nullptr; // not used in parallel state
+    bool is_parallel_ = false;
 
     std::list<std::function<void()>> on_entered_callbacks_;
     std::list<std::function<void()>> on_exited_callbacks_;

@@ -39,6 +39,6 @@ MIT
 
 ## TODO
 
-- [ ] parallel state
+- [x] parallel state
 - [x] high priority event
 - [ ] history
