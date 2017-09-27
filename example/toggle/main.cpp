@@ -6,7 +6,6 @@
 
 #include "statemachine.h"
 #include "policy.h"
-#include "log.h"
 
 using namespace seedsm;
 
@@ -32,7 +31,7 @@ struct MyStateMachine : public StateMachine<Policy> {
         on_state_entered(ST::FIN, [this] { stop(); });
 
         on_transition<EV::TOGGLE>(ST::ON,
-                                  [this](EV, const std::string& ev_msg) {
+                                  [this](const std::string& ev_msg) {
             std::cout << "ST::ON receive EV::TOGGLE: msg = " << ev_msg.c_str()
                       << std::endl;
         });
