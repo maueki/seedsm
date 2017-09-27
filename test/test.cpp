@@ -4,6 +4,8 @@
 
 #include <ev++.h>
 
+#include <string>
+
 #include "util.h"
 
 struct Policy1 {
@@ -13,7 +15,7 @@ struct Policy1 {
 
 DEFINE_EVENT(Policy1::TO_A);
 DEFINE_EVENT(Policy1::TO_B);
-DEFINE_EVENT(Policy1::TO_C);
+DEFINE_EVENT_WITH_DATA(Policy1::TO_C, std::string);
 
 namespace {
 class Test : public testing::Test {
@@ -37,13 +39,16 @@ struct SM1 : public seeds::StateMachine<Policy1> {
         add_transition<EV::TO_C>(ST::B, ST::C);
 
         on_state_entered(ST::C, [this] { stop(); });
-        on_transition<EV::TO_A>(ST::A, [this](EV) { a_recv_to_a = true; });
-        on_transition<EV::TO_B>(ST::B, [this](EV) { send<EV::TO_C>(); });
+        on_transition<EV::TO_A>(ST::A, [this] { a_recv_to_a = true; });
+        on_transition<EV::TO_B>(ST::B, [this] { send<EV::TO_C>("msg"); });
+        on_transition<EV::TO_C>(
+            ST::B, [this](const std::string& msg) { to_c_msg = msg; });
         on_state_exited(ST::B, [this] { exit_b_cnt++; });
     }
 
     bool a_recv_to_a = false;
     int exit_b_cnt = 0;
+    std::string to_c_msg = "";
 };
 
 TEST_F(Test, Test1) {
@@ -62,6 +67,7 @@ TEST_F(Test, Test1) {
 
     EXPECT_EQ(true, sm.a_recv_to_a);
     EXPECT_EQ(2, sm.exit_b_cnt);
+    EXPECT_EQ("msg", sm.to_c_msg);
 }
 }
 
@@ -109,7 +115,6 @@ TEST_F(Test, TestPriority) {
 
     EXPECT_EQ(true, sm.enter_c);
 }
-
 }
 
 struct PolicyPar {
@@ -129,7 +134,6 @@ struct SMPar : public seeds::StateMachine<PolicyPar> {
 
     SMPar(ev::loop_ref loop)
         : StateMachine("Root", loop) {
-
         create_states({ST::A, ST::B, ST::C});
 
         create_states(ST::A, {ST::A1, ST::A2});
@@ -143,16 +147,13 @@ struct SMPar : public seeds::StateMachine<PolicyPar> {
 
         on_state_entered(ST::C, [this] { stop(); });
 
-        for(auto&& st: {ST::A1, ST::A2, ST::B1, ST::B2}) {
-            on_state_entered(st, [this, st] {
-                    enter_cnt[st]++;
-                });
+        for (auto&& st : {ST::A1, ST::A2, ST::B1, ST::B2}) {
+            on_state_entered(st, [this, st] { enter_cnt[st]++; });
         }
-
     }
 
-    std::map<ST, int> enter_cnt = {{ST::A1, 0}, {ST::A2, 0}, {ST::B1,0}, {ST::B2, 0}};
-
+    std::map<ST, int> enter_cnt = {
+        {ST::A1, 0}, {ST::A2, 0}, {ST::B1, 0}, {ST::B2, 0}};
 };
 
 TEST_F(Test, TestParallel) {
@@ -175,5 +176,4 @@ TEST_F(Test, TestParallel) {
     EXPECT_EQ(2, sm.enter_cnt[ST::B1]);
     EXPECT_EQ(0, sm.enter_cnt[ST::B2]);
 }
-
 }

@@ -32,12 +32,12 @@ class EventImpl : public Event<EVENT_ENUM> {
     EventImpl() : Event<EVENT_ENUM>(EVENT) {}
 
 public:
-    using callback_type = std::function<void(EVENT_ENUM)>;
+    using callback_type = std::function<void()>;
     static const EVENT_ENUM event_type = EVENT;
 
     static EventImpl* create() { return new EventImpl(); }
 
-    void exec(callback_type fn) { fn(event_type); }
+    void exec(callback_type fn) { fn(); }
 };
 
 #define DEFINE_EVENT(EVENT)                                                \
@@ -56,14 +56,14 @@ class EventImplWithData : public Event<EVENT_ENUM> {
 
 public:
     const DATATYPE data;
-    using callback_type = std::function<void(EVENT_ENUM, DATATYPE)>;
+    using callback_type = std::function<void(DATATYPE)>;
     static const EVENT_ENUM event_type = EVENT;
 
     static EventImplWithData* create(const DATATYPE& data) {
         return new EventImplWithData(data);
     }
 
-    void exec(callback_type fn) { fn(event_type, data); }
+    void exec(callback_type fn) { fn(data); }
 };
 
 #define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                            \
