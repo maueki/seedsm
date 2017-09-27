@@ -16,9 +16,6 @@ struct Policy {
         TOGGLE,
         END,
     };
-
-    using state_id_t = STATE;
-    using event_id_t = EVENT;
 };
 
 std::string to_string(Policy::STATE st) {

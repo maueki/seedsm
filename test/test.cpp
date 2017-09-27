@@ -9,8 +9,8 @@
 #include "util.h"
 
 struct Policy1 {
-    enum state_id_t { A, B, C };
-    enum event_id_t { TO_A, TO_B, TO_C };
+    enum STATE { A, B, C };
+    enum EVENT { TO_A, TO_B, TO_C };
 };
 
 DEFINE_EVENT(Policy1::TO_A);
@@ -27,8 +27,8 @@ class Test : public testing::Test {
 namespace {
 
 struct SM1 : public seedsm::StateMachine<Policy1> {
-    using ST = Policy1::state_id_t;
-    using EV = Policy1::event_id_t;
+    using ST = Policy1::STATE;
+    using EV = Policy1::EVENT;
 
     SM1(ev::loop_ref loop)
         : StateMachine("Root", loop) {
@@ -52,8 +52,8 @@ struct SM1 : public seedsm::StateMachine<Policy1> {
 };
 
 TEST_F(Test, Test1) {
-    using ST = Policy1::state_id_t;
-    using EV = Policy1::event_id_t;
+    using ST = Policy1::STATE;
+    using EV = Policy1::EVENT;
 
     ev::dynamic_loop loop;
     SM1 sm(loop);
@@ -72,8 +72,8 @@ TEST_F(Test, Test1) {
 }
 
 struct PolicyPri {
-    enum state_id_t { A, B, C };
-    enum event_id_t { TO_B, TO_C };
+    enum STATE { A, B, C };
+    enum EVENT { TO_B, TO_C };
 };
 
 DEFINE_EVENT(PolicyPri::TO_B);
@@ -82,8 +82,8 @@ DEFINE_EVENT(PolicyPri::TO_C);
 namespace {
 
 struct SMPri : public seedsm::StateMachine<PolicyPri> {
-    using ST = PolicyPri::state_id_t;
-    using EV = PolicyPri::event_id_t;
+    using ST = PolicyPri::STATE;
+    using EV = PolicyPri::EVENT;
 
     SMPri(ev::loop_ref loop)
         : StateMachine("Root", loop) {
@@ -101,8 +101,8 @@ struct SMPri : public seedsm::StateMachine<PolicyPri> {
 };
 
 TEST_F(Test, TestPriority) {
-    using ST = PolicyPri::state_id_t;
-    using EV = PolicyPri::event_id_t;
+    using ST = PolicyPri::STATE;
+    using EV = PolicyPri::EVENT;
 
     ev::dynamic_loop loop;
     SMPri sm(loop);
@@ -118,8 +118,8 @@ TEST_F(Test, TestPriority) {
 }
 
 struct PolicyPar {
-    enum state_id_t { A, A1, A2, B, B1, B2, C };
-    enum event_id_t { TO_A, TO_B, TO_C };
+    enum STATE { A, A1, A2, B, B1, B2, C };
+    enum EVENT { TO_A, TO_B, TO_C };
 };
 
 DEFINE_EVENT(PolicyPar::TO_A);
@@ -129,8 +129,8 @@ DEFINE_EVENT(PolicyPar::TO_C);
 namespace {
 
 struct SMPar : public seedsm::StateMachine<PolicyPar> {
-    using ST = PolicyPar::state_id_t;
-    using EV = PolicyPar::event_id_t;
+    using ST = PolicyPar::STATE;
+    using EV = PolicyPar::EVENT;
 
     SMPar(ev::loop_ref loop)
         : StateMachine("Root", loop) {
@@ -157,8 +157,8 @@ struct SMPar : public seedsm::StateMachine<PolicyPar> {
 };
 
 TEST_F(Test, TestParallel) {
-    using ST = PolicyPar::state_id_t;
-    using EV = PolicyPar::event_id_t;
+    using ST = PolicyPar::STATE;
+    using EV = PolicyPar::EVENT;
 
     ev::dynamic_loop loop;
     SMPar sm(loop);

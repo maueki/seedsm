@@ -10,8 +10,8 @@
 using namespace seedsm;
 
 struct MyStateMachine : public StateMachine<Policy> {
-    using ST = Policy::state_id_t;
-    using EV = Policy::event_id_t;
+    using ST = Policy::STATE;
+    using EV = Policy::EVENT;
 
     MyStateMachine(ev::loop_ref loop)
         : StateMachine("Root", loop) {
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     sm.start();
 
     auto f = std::async(std::launch::async, [&sm] {
-        using EV = Policy::event_id_t;
+        using EV = Policy::EVENT;
         using namespace std::chrono_literals;
 
         for (int i = 0; i < 5; ++i) {

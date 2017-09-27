@@ -319,8 +319,8 @@ private:
 
 template <typename STATE_POLICY>
 struct StateMachine : protected State {
-    using STATE_ID = typename STATE_POLICY::state_id_t;
-    using EVENT_ID = typename STATE_POLICY::event_id_t;
+    using STATE_ID = typename STATE_POLICY::STATE;
+    using EVENT_ID = typename STATE_POLICY::EVENT;
 
     template <EVENT_ID EVENT>
     using event_class = typename _EventCreator<
