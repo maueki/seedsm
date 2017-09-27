@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstdarg>
 #include <cstring>
 
@@ -20,6 +21,15 @@ static void log(const char* fmt, ...) {
     va_start(ap, fmt);
     SEEDS_LOG_HANDLER(fmt, ap);
     va_end(ap);
+}
+
+__attribute__((format(printf, 1, 2)))
+static void abort(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    SEEDS_LOG_HANDLER(fmt, ap);
+    va_end(ap);
+    ::abort();
 }
 
 }  // seeds
