@@ -12,7 +12,7 @@
 #include <string>
 #include <map>
 #include <mutex>
-#include <queue>
+#include <deque>
 
 #include <ev++.h>
 
@@ -271,6 +271,8 @@ struct Transition {
 
     // virtual bool event_test(Event* ev) = 0;
 
+    virtual ~Transition(){}
+
     State* source_state() { return source_; }
     const State* source_state() const { return source_; }
 
@@ -336,6 +338,20 @@ struct StateMachine : protected State {
         init_event_->set<StateMachine, &StateMachine::initialize>(this);
     }
 
+    ~StateMachine() {
+        for (auto&& trans: transitions_) {
+            delete trans.second;
+        }
+
+        for (auto&& ev: event_queue_) {
+            delete ev;
+        }
+
+        for (auto&& ev: high_event_queue_) {
+            delete ev;
+        }
+    }
+
     void create_states(STATE_ID parent, const std::list<STATE_ID>& states) {
         for (auto&& s : states) {
             create_state(id_to_state(parent), s);
@@ -376,7 +392,7 @@ struct StateMachine : protected State {
 
     void post_event(EventBase* ev) {
         std::unique_lock<std::mutex> lock(queue_mutex_);
-        event_queue_.push(ev);
+        event_queue_.push_back(ev);
         send_event_->send();
     }
 
@@ -388,7 +404,7 @@ struct StateMachine : protected State {
 
     void post_high_event(EventBase* ev) {
         std::unique_lock<std::mutex> lock(queue_mutex_);
-        high_event_queue_.push(ev);
+        high_event_queue_.push_back(ev);
         send_event_->send();
     }
 
@@ -396,14 +412,14 @@ struct StateMachine : protected State {
         std::unique_lock<std::mutex> lock(queue_mutex_);
         if (!high_event_queue_.empty()) {
             auto ev = high_event_queue_.front();
-            high_event_queue_.pop();
+            high_event_queue_.pop_front();
             return ev;
         }
 
         if (event_queue_.empty()) return nullptr;
 
         auto ev = event_queue_.front();
-        event_queue_.pop();
+        event_queue_.pop_front();
         return ev;
     }
 
@@ -551,8 +567,8 @@ private:
     std::unique_ptr<ev::async> init_event_;
     std::unique_ptr<ev::async> send_event_;
     std::mutex queue_mutex_;
-    std::queue<EventBase*> event_queue_;
-    std::queue<EventBase*> high_event_queue_;
+    std::deque<EventBase*> event_queue_;
+    std::deque<EventBase*> high_event_queue_;
 
     void create_state(State* parent, STATE_ID child) {
         assert(states_.count(child) == 0);
