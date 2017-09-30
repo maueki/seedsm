@@ -1,10 +1,10 @@
-# SEEDSM
+# seedsm
 
 [![CircleCI](https://circleci.com/gh/maueki/seedsm.svg?style=shield)](https://circleci.com/gh/maueki/seedsm)
 
 ## About
 
-SEEDSM(Simple and Easy Event Driven State Machine) is a C++ header only state machine library based on [libev](http://software.schmorp.de/pkg/libev.html).
+Seedsm(Simple and Easy Event Driven State Machine) is a C++ header only state machine library based on [libev](http://software.schmorp.de/pkg/libev.html).
 
 ## Requirements
 
