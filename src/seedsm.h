@@ -24,23 +24,24 @@
     }
 #endif
 
-#define DEFINE_EVENT(EVENT)                                             \
-    template <>                                                         \
-    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {    \
-        using EVENT_CLASS = seedsm::EventImpl<decltype(EVENT), EVENT>;  \
-        static seedsm::EventBase* create() {                            \
-            return seedsm::EventImpl<decltype(EVENT), EVENT>::create(); \
-        }                                                               \
+#define DEFINE_EVENT(EVENT)                                                    \
+    template <>                                                                \
+    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {           \
+        using EVENT_CLASS = seedsm::_inner::EventImpl<decltype(EVENT), EVENT>; \
+        static seedsm::_inner::EventBase* create() {                           \
+            return seedsm::_inner::EventImpl<decltype(EVENT),                  \
+                                             EVENT>::create();                 \
+        }                                                                      \
     };
 
-#define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                          \
-    template <>                                                          \
-    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {     \
-        using EVENT_CLASS =                                              \
-            seedsm::EventImplWithData<decltype(EVENT), EVENT, DATATYPE>; \
-        static seedsm::EventBase* create(const DATATYPE& arg) {          \
-            return EVENT_CLASS::create(arg);                             \
-        }                                                                \
+#define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                         \
+    template <>                                                         \
+    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {    \
+        using EVENT_CLASS = seedsm::_inner::EventImplWithData<          \
+            decltype(EVENT), EVENT, DATATYPE>;                          \
+        static seedsm::_inner::EventBase* create(const DATATYPE& arg) { \
+            return EVENT_CLASS::create(arg);                            \
+        }                                                               \
     };
 
 // workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56480
@@ -64,6 +65,8 @@ __attribute__((format(printf, 1, 2))) static void abort(const char* fmt, ...) {
     ::abort();
 }
 
+namespace _inner {
+
 class EventBase {};
 
 template <typename EVENT_ENUM>
@@ -72,8 +75,7 @@ class Event : public EventBase {
     std::function<void()> on_delete_fn_;
 
 public:
-    Event(EVENT_ENUM event_type)
-        : event_type_(event_type) {}
+    Event(EVENT_ENUM event_type) : event_type_(event_type) {}
 
     ~Event() {
         if (on_delete_fn_) on_delete_fn_();
@@ -86,8 +88,7 @@ public:
 
 template <typename EVENT_ENUM, EVENT_ENUM EVENT>
 class EventImpl : public Event<EVENT_ENUM> {
-    EventImpl()
-        : Event<EVENT_ENUM>(EVENT) {}
+    EventImpl() : Event<EVENT_ENUM>(EVENT) {}
 
 public:
     using callback_type = std::function<void()>;
@@ -101,8 +102,7 @@ public:
 template <typename EVENT_ENUM, EVENT_ENUM EVENT, typename DATATYPE>
 class EventImplWithData : public Event<EVENT_ENUM> {
     EventImplWithData(const DATATYPE& data)
-        : Event<EVENT_ENUM>(EVENT)
-        , data(data) {}
+        : Event<EVENT_ENUM>(EVENT), data(data) {}
 
 public:
     const DATATYPE data;
@@ -127,8 +127,7 @@ inline EVENT* event_cast(Event<EVENT_ENUM>* ev) {
 
 struct State {
     State(const std::string& name, State* parent = nullptr)
-        : name_(name)
-        , parent_(parent) {
+        : name_(name), parent_(parent) {
         if (parent) {
             parent->add_child(this);
         }
@@ -266,8 +265,7 @@ private:
 
 struct Transition {
     Transition(State* source = nullptr, State* target = nullptr)
-        : source_(source)
-        , target_(target) {}
+        : source_(source), target_(target) {}
 
     // virtual bool event_test(Event* ev) = 0;
 
@@ -289,8 +287,7 @@ private:
 template <typename EVENT_CLASS>
 struct TransitionImpl : public Transition {
     explicit TransitionImpl(State* source = nullptr, State* target = nullptr)
-        : Transition(source, target)
-        , func_list_() {}
+        : Transition(source, target), func_list_() {}
 
     void on_transition(typename EVENT_CLASS::callback_type fn) {
         func_list_.push_back(fn);
@@ -319,9 +316,10 @@ private:
     std::list<typename EVENT_CLASS::callback_type> func_list_;
     std::list<typename EVENT_CLASS::callback_type> failed_func_list_;
 };
+}  // _inner
 
 template <typename STATE_POLICY>
-struct StateMachine : protected State {
+struct StateMachine : protected _inner::State {
     using STATE_ID = typename STATE_POLICY::STATE;
     using EVENT_ID = typename STATE_POLICY::EVENT;
 
@@ -407,8 +405,8 @@ struct StateMachine : protected State {
     void add_transition(STATE_ID source) {
         assert(transitions_.count({state(source), EVENT}) == 0);
 
-        auto tran =
-            new TransitionImpl<event_class<EVENT>>(state(source), nullptr);
+        auto tran = new _inner::TransitionImpl<event_class<EVENT>>(
+            state(source), nullptr);
         transitions_[{state(source), EVENT}] = tran;
     }
 
@@ -416,8 +414,8 @@ struct StateMachine : protected State {
     void add_transition(STATE_ID source, STATE_ID target) {
         assert(transitions_.count({state(source), EVENT}) == 0);
 
-        auto tran = new TransitionImpl<event_class<EVENT>>(state(source),
-                                                           state(target));
+        auto tran = new _inner::TransitionImpl<event_class<EVENT>>(
+            state(source), state(target));
         transitions_[{state(source), EVENT}] = tran;
     }
 
@@ -426,25 +424,25 @@ struct StateMachine : protected State {
                        typename event_class<EVENT>::callback_type fn) {
         assert(transitions_.count({state(source), EVENT}) == 1);
 
-        auto trans = static_cast<TransitionImpl<event_class<EVENT>>*>(
+        auto trans = static_cast<_inner::TransitionImpl<event_class<EVENT>>*>(
             transitions_[{state(source), EVENT}]);
         trans->on_transition(fn);
     }
 
 private:
-    void post_event(EventBase* ev) {
+    void post_event(_inner::EventBase* ev) {
         std::unique_lock<std::mutex> lock(queue_mutex_);
         event_queue_.push_back(ev);
         send_event_->send();
     }
 
-    void post_high_event(EventBase* ev) {
+    void post_high_event(_inner::EventBase* ev) {
         std::unique_lock<std::mutex> lock(queue_mutex_);
         high_event_queue_.push_back(ev);
         send_event_->send();
     }
 
-    EventBase* pop_event() {
+    _inner::EventBase* pop_event() {
         std::unique_lock<std::mutex> lock(queue_mutex_);
         if (!high_event_queue_.empty()) {
             auto ev = high_event_queue_.front();
@@ -459,10 +457,10 @@ private:
         return ev;
     }
 
-    const std::list<Transition*> collect_transition(EVENT_ID ev) {
-        std::list<Transition*> trans;
+    const std::list<_inner::Transition*> collect_transition(EVENT_ID ev) {
+        std::list<_inner::Transition*> trans;
 
-        walk([this, ev, &trans](State* st) {
+        walk([this, ev, &trans](_inner::State* st) {
             if (transitions_.count({st, ev}) > 0) {
                 trans.push_back(transitions_[{st, ev}]);
             }
@@ -471,9 +469,9 @@ private:
         return trans;
     }
 
-    bool is_active(State* state) {
+    bool is_active(_inner::State* state) {
         bool active = false;
-        walk([this, &active, state](State* st) {
+        walk([this, &active, state](_inner::State* st) {
             if (state == st) {
                 active = true;
             }
@@ -482,11 +480,12 @@ private:
         return active;
     }
 
-    void do_transition(EventBase* ev, State* source, State* target) {
+    void do_transition(_inner::EventBase* ev, _inner::State* source,
+                       _inner::State* target) {
         assert(source);
         if (source == target) {
             source->exit(ev);
-            auto event = static_cast<Event<EVENT_ID>*>(ev);
+            auto event = static_cast<_inner::Event<EVENT_ID>*>(ev);
             auto trans = transitions_[{source, event->type()}];
             trans->do_callback(ev);
 
@@ -494,15 +493,15 @@ private:
             return;
         }
 
-        State* prev_s = nullptr;
-        for (State* s = source; s != nullptr; s = s->parent()) {
-            for (State* t = target; t != nullptr; t = t->parent()) {
+        _inner::State* prev_s = nullptr;
+        for (_inner::State* s = source; s != nullptr; s = s->parent()) {
+            for (_inner::State* t = target; t != nullptr; t = t->parent()) {
                 if (s == t) {
                     if (prev_s) {
                         prev_s->exit(ev);
                     }
 
-                    auto event = static_cast<Event<EVENT_ID>*>(ev);
+                    auto event = static_cast<_inner::Event<EVENT_ID>*>(ev);
                     auto trans = transitions_[{source, event->type()}];
                     trans->do_callback(ev);
 
@@ -518,8 +517,8 @@ private:
 
     void received() {
         for (;;) {
-            auto ev = std::unique_ptr<Event<EVENT_ID>>(
-                static_cast<Event<EVENT_ID>*>(pop_event()));
+            auto ev = std::unique_ptr<_inner::Event<EVENT_ID>>(
+                static_cast<_inner::Event<EVENT_ID>*>(pop_event()));
             if (!ev) return;
 
             auto ev_type = ev->type();
@@ -546,14 +545,14 @@ private:
         enter(nullptr);
     }
 
-    State* state(STATE_ID st) {
-        // TODO: return const_cast<State*>(static_cast<const
+    _inner::State* state(STATE_ID st) {
+        // TODO: return const_cast<_inner::State*>(static_cast<const
         // StateMachine*>(this)->state(st));
         assert(states_.count(st) == 1);
         return states_[st];
     }
 
-    const State* state(STATE_ID st) const {
+    const _inner::State* state(STATE_ID st) const {
         // TODO: return state_impl(st);
         assert(states_.count(st) == 1);
         return states_[st];
@@ -561,22 +560,23 @@ private:
 
 private:
     ev::loop_ref loop_;
-    std::map<STATE_ID, State*> states_;
-    std::map<std::pair<State*, EVENT_ID>, Transition*> transitions_;
+    std::map<STATE_ID, _inner::State*> states_;
+    std::map<std::pair<_inner::State*, EVENT_ID>, _inner::Transition*>
+        transitions_;
 
     std::unique_ptr<ev::async> init_event_;
     std::unique_ptr<ev::async> send_event_;
     std::mutex queue_mutex_;
-    std::deque<EventBase*> event_queue_;
-    std::deque<EventBase*> high_event_queue_;
+    std::deque<_inner::EventBase*> event_queue_;
+    std::deque<_inner::EventBase*> high_event_queue_;
 
-    void create_state(State* parent, STATE_ID child) {
+    void create_state(_inner::State* parent, STATE_ID child) {
         assert(states_.count(child) == 0);
 
-        states_[child] = new State(to_string(child), parent);
+        states_[child] = new _inner::State(to_string(child), parent);
     }
 
-    State* id_to_state(STATE_ID st) {
+    _inner::State* id_to_state(STATE_ID st) {
         assert(states_.count(st) == 1);
         return states_[st];
     }
