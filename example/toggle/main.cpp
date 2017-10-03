@@ -9,11 +9,12 @@
 
 using namespace seedsm;
 
-struct MyStateMachine : public StateMachine<Policy> {
-    using ST = Policy::STATE;
-    using EV = Policy::EVENT;
+using ST = Policy::STATE;
+using EV = Policy::EVENT;
 
-    MyStateMachine(ev::loop_ref loop) : StateMachine("Root", loop) {
+struct MyStateMachine : public StateMachine<Policy> {
+    MyStateMachine(ev::loop_ref loop)
+        : StateMachine("Root", loop) {
         create_states({ST::INIT, ST::ON, ST::OFF, ST::FIN});
 
         add_transition<EV::INIT_COMP>(ST::INIT, ST::OFF);
@@ -22,11 +23,7 @@ struct MyStateMachine : public StateMachine<Policy> {
         add_transition<EV::END>(ST::ON, ST::FIN);
         add_transition<EV::END>(ST::OFF, ST::FIN);
 
-        on_state_entered(ST::INIT, [this] { send<EV::INIT_COMP>(); });
-        on_state_entered(ST::OFF,
-                         [] { std::cout << "ST::OFF entered" << std::endl; });
-        on_state_entered(ST::ON,
-                         [] { std::cout << "ST::ON entered" << std::endl; });
+        on_state_entered(ST::INIT, [this] { send_high<EV::INIT_COMP>(); });
         on_state_entered(ST::FIN, [this] { stop(); });
 
         on_transition<EV::TOGGLE>(ST::ON, [this](const std::string& ev_msg) {
@@ -43,17 +40,10 @@ int main(int argc, char* argv[]) {
 
     sm.start();
 
-    auto f = std::async(std::launch::async, [&sm] {
-        using EV = Policy::EVENT;
-        using namespace std::chrono_literals;
-
-        for (int i = 0; i < 5; ++i) {
-            std::this_thread::sleep_for(500ms);
-            sm.send<EV::TOGGLE>("toggle");
-        }
-
-        sm.send<EV::END>();
-    });
+    sm.send<EV::TOGGLE>("toggle1");
+    sm.send<EV::TOGGLE>("toggle2");
+    sm.send<EV::TOGGLE>("toggle3");
+    sm.send<EV::END>();
 
     main_loop.run(0);
 
