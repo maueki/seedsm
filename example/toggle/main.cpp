@@ -1,8 +1,5 @@
 
 #include <iostream>
-#include <future>
-#include <ev++.h>
-#include <signal.h>
 
 #include "seedsm.h"
 #include "policy.h"
@@ -13,8 +10,8 @@ using ST = Policy::STATE;
 using EV = Policy::EVENT;
 
 struct MyStateMachine : public StateMachine<Policy> {
-    MyStateMachine(ev::loop_ref loop)
-        : StateMachine("Root", loop) {
+    MyStateMachine()
+        : StateMachine("Root") {
         create_states({ST::INIT, ST::ON, ST::OFF, ST::FIN});
 
         add_transition<EV::INIT_COMP>(ST::INIT, ST::OFF);
@@ -24,7 +21,7 @@ struct MyStateMachine : public StateMachine<Policy> {
         add_transition<EV::END>(ST::OFF, ST::FIN);
 
         on_state_entered(ST::INIT, [this] { send_high<EV::INIT_COMP>(); });
-        on_state_entered(ST::FIN, [this] { stop(); });
+        on_state_entered(ST::FIN, [this] { std::cout << "ST::FIN" << std::endl; });
 
         on_transition<EV::TOGGLE>(ST::ON, [this](const std::string& ev_msg) {
             std::cout << "ST::ON receive EV::TOGGLE: msg = " << ev_msg
@@ -34,9 +31,7 @@ struct MyStateMachine : public StateMachine<Policy> {
 };
 
 int main(int argc, char* argv[]) {
-    ev::dynamic_loop main_loop;
-
-    MyStateMachine sm(main_loop);
+    MyStateMachine sm{};
 
     sm.start();
 
@@ -44,8 +39,6 @@ int main(int argc, char* argv[]) {
     sm.send<EV::TOGGLE>("toggle2");
     sm.send<EV::TOGGLE>("toggle3");
     sm.send<EV::END>();
-
-    main_loop.run(0);
 
     return 0;
 }

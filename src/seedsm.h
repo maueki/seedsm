@@ -1,3 +1,26 @@
+/*
+ * Copyright (c) 2019 Ueki Masaru <masaru.ueki@itage.co.jp>
+ * All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #pragma once
 
 #include <cstdio>
@@ -11,10 +34,7 @@
 #include <list>
 #include <string>
 #include <map>
-#include <mutex>
 #include <deque>
-
-#include <ev++.h>
 
 #ifndef SEEDSM_LOG_HANDLER
 #define SEEDSM_LOG_HANDLER(fmt, arg) \
@@ -327,14 +347,10 @@ struct StateMachine : protected _inner::State {
     using event_class = typename _EventCreator<
         decltype(EVENT), static_cast<int>(EVENT)>::EVENT_CLASS;
 
-    StateMachine(const std::string& name, ev::loop_ref loop)
+    StateMachine(const std::string& name)
         : State(name)
-        , loop_(loop)
         , states_()
-        , send_event_(std::unique_ptr<ev::async>(new ev::async(loop)))
-        , init_event_(std::unique_ptr<ev::async>(new ev::async(loop))) {
-        send_event_->set<StateMachine, &StateMachine::received>(this);
-        init_event_->set<StateMachine, &StateMachine::initialize>(this);
+    {
     }
 
     ~StateMachine() {
@@ -367,18 +383,6 @@ struct StateMachine : protected _inner::State {
 
     void set_parallel(STATE_ID st, bool is_par) {
         state(st)->set_parallel(is_par);
-    }
-
-    void start() {
-        init_event_->start();
-        init_event_->send();
-
-        send_event_->start();
-    }
-
-    void stop() {
-        send_event_->stop();
-        init_event_->stop();
     }
 
     template <EVENT_ID E, typename... Args>
@@ -429,21 +433,26 @@ struct StateMachine : protected _inner::State {
         trans->on_transition(fn);
     }
 
+    void start() {
+        log("start");
+
+        enter(nullptr);
+    }
+
 private:
     void post_event(_inner::EventBase* ev) {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
         event_queue_.push_back(ev);
-        send_event_->send();
+
+        do_process();
     }
 
     void post_high_event(_inner::EventBase* ev) {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
         high_event_queue_.push_back(ev);
-        send_event_->send();
+
+        do_process();
     }
 
     _inner::EventBase* pop_event() {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
         if (!high_event_queue_.empty()) {
             auto ev = high_event_queue_.front();
             high_event_queue_.pop_front();
@@ -515,7 +524,7 @@ private:
         return;  // don't reach
     }
 
-    void received() {
+    void do_process() {
         for (;;) {
             auto ev = std::unique_ptr<_inner::Event<EVENT_ID>>(
                 static_cast<_inner::Event<EVENT_ID>*>(pop_event()));
@@ -539,12 +548,6 @@ private:
         }
     }
 
-    void initialize() {
-        log("initialize");
-
-        enter(nullptr);
-    }
-
     _inner::State* state(STATE_ID st) {
         // TODO: return const_cast<_inner::State*>(static_cast<const
         // StateMachine*>(this)->state(st));
@@ -559,14 +562,10 @@ private:
     }
 
 private:
-    ev::loop_ref loop_;
     std::map<STATE_ID, _inner::State*> states_;
     std::map<std::pair<_inner::State*, EVENT_ID>, _inner::Transition*>
         transitions_;
 
-    std::unique_ptr<ev::async> init_event_;
-    std::unique_ptr<ev::async> send_event_;
-    std::mutex queue_mutex_;
     std::deque<_inner::EventBase*> event_queue_;
     std::deque<_inner::EventBase*> high_event_queue_;
 
