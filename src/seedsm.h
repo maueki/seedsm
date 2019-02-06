@@ -525,10 +525,16 @@ private:
     }
 
     void do_process() {
+        if (in_process_) {
+            return;
+        }
+
+        in_process_ = true;
+
         for (;;) {
             auto ev = std::unique_ptr<_inner::Event<EVENT_ID>>(
                 static_cast<_inner::Event<EVENT_ID>*>(pop_event()));
-            if (!ev) return;
+            if (!ev) { in_process_ = false; return;}
 
             auto ev_type = ev->type();
             auto trans = collect_transition(ev_type);
@@ -568,6 +574,8 @@ private:
 
     std::deque<_inner::EventBase*> event_queue_;
     std::deque<_inner::EventBase*> high_event_queue_;
+
+    bool in_process_ = false;
 
     void create_state(_inner::State* parent, STATE_ID child) {
         assert(states_.count(child) == 0);

@@ -2,8 +2,6 @@
 #include "seedsm.h"
 #include "gtest/gtest.h"
 
-#include <ev++.h>
-
 #include <string>
 
 #include "util.h"
@@ -30,15 +28,15 @@ struct SM1 : public seedsm::StateMachine<Policy1> {
     using ST = Policy1::STATE;
     using EV = Policy1::EVENT;
 
-    SM1(ev::loop_ref loop)
-        : StateMachine("Root", loop) {
+    SM1()
+        : StateMachine("Root") {
         create_states({ST::A, ST::B, ST::C});
         add_transition<EV::TO_A>(ST::A);
         add_transition<EV::TO_B>(ST::A, ST::B);
         add_transition<EV::TO_B>(ST::B, ST::B);
         add_transition<EV::TO_C>(ST::B, ST::C);
 
-        on_state_entered(ST::C, [this] { stop(); });
+//        on_state_entered(ST::C, [this] { stop(); });
         on_transition<EV::TO_A>(ST::A, [this] { a_recv_to_a = true; });
         on_transition<EV::TO_B>(ST::B, [this] { send<EV::TO_C>("msg"); });
         on_transition<EV::TO_C>(
@@ -55,15 +53,12 @@ TEST_F(Test, Test1) {
     using ST = Policy1::STATE;
     using EV = Policy1::EVENT;
 
-    ev::dynamic_loop loop;
-    SM1 sm(loop);
+    SM1 sm{};
 
     sm.start();
     sm.send<EV::TO_A>();
     sm.send<EV::TO_B>();
     sm.send<EV::TO_B>();
-
-    loop.run(0);
 
     EXPECT_EQ(true, sm.a_recv_to_a);
     EXPECT_EQ(2, sm.exit_b_cnt);
@@ -85,8 +80,8 @@ struct SMPri : public seedsm::StateMachine<PolicyPri> {
     using ST = PolicyPri::STATE;
     using EV = PolicyPri::EVENT;
 
-    SMPri(ev::loop_ref loop)
-        : StateMachine("Root", loop) {
+    SMPri()
+        : StateMachine("Root") {
         create_states({ST::A, ST::B, ST::C});
         add_transition<EV::TO_B>(ST::A, ST::B);
         add_transition<EV::TO_C>(ST::A, ST::C);
@@ -94,7 +89,7 @@ struct SMPri : public seedsm::StateMachine<PolicyPri> {
         add_transition<EV::TO_B>(ST::C, ST::B);
 
         on_state_entered(ST::C, [this] { enter_c = true; });
-        on_state_entered(ST::B, [this] { stop(); });
+//        on_state_entered(ST::B, [this] { stop(); });
     }
 
     bool enter_c = false;
@@ -104,14 +99,11 @@ TEST_F(Test, TestPriority) {
     using ST = PolicyPri::STATE;
     using EV = PolicyPri::EVENT;
 
-    ev::dynamic_loop loop;
-    SMPri sm(loop);
+    SMPri sm{};
 
     sm.start();
     sm.send<EV::TO_B>();
     sm.send_high<EV::TO_C>();
-
-    loop.run(0);
 
     EXPECT_EQ(true, sm.enter_c);
 }
@@ -132,8 +124,8 @@ struct SMPar : public seedsm::StateMachine<PolicyPar> {
     using ST = PolicyPar::STATE;
     using EV = PolicyPar::EVENT;
 
-    SMPar(ev::loop_ref loop)
-        : StateMachine("Root", loop) {
+    SMPar()
+        : StateMachine("Root") {
         create_states({ST::A, ST::B, ST::C});
 
         create_states(ST::A, {ST::A1, ST::A2});
@@ -145,7 +137,7 @@ struct SMPar : public seedsm::StateMachine<PolicyPar> {
         add_transition<EV::TO_C>(ST::B, ST::C);
         add_transition<EV::TO_A>(ST::B, ST::A);
 
-        on_state_entered(ST::C, [this] { stop(); });
+//        on_state_entered(ST::C, [this] { stop(); });
 
         for (auto&& st : {ST::A1, ST::A2, ST::B1, ST::B2}) {
             on_state_entered(st, [this, st] { enter_cnt[st]++; });
@@ -160,16 +152,13 @@ TEST_F(Test, TestParallel) {
     using ST = PolicyPar::STATE;
     using EV = PolicyPar::EVENT;
 
-    ev::dynamic_loop loop;
-    SMPar sm(loop);
+    SMPar sm{};
 
     sm.start();
     sm.send<EV::TO_B>();
     sm.send<EV::TO_A>();
     sm.send<EV::TO_B>();
     sm.send<EV::TO_C>();
-
-    loop.run(0);
 
     EXPECT_EQ(2, sm.enter_cnt[ST::A1]);
     EXPECT_EQ(2, sm.enter_cnt[ST::A2]);
