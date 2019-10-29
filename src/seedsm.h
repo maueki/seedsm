@@ -9,7 +9,8 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all
+ * The above copyright notice and this permission notice shall be included in
+ *all
  * copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -39,33 +40,26 @@
 #include <QStateMachine>
 #include <QState>
 #include <QEvent>
-
-#ifndef SEEDSM_LOG_HANDLER
-#define SEEDSM_LOG_HANDLER(fmt, arg) \
-    {                                \
-        vfprintf(stderr, fmt, arg);  \
-        fprintf(stderr, "\n");       \
-    }
-#endif
+#include <QDebug>
 
 #define DEFINE_EVENT(EVENT)                                                    \
     template <>                                                                \
     struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {           \
         using EVENT_CLASS = seedsm::_inner::EventImpl<decltype(EVENT), EVENT>; \
-        static QEvent* create() {                           \
+        static QEvent* create() {                                              \
             return seedsm::_inner::EventImpl<decltype(EVENT),                  \
                                              EVENT>::create();                 \
         }                                                                      \
     };
 
-#define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                         \
-    template <>                                                         \
-    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {    \
-        using EVENT_CLASS = seedsm::_inner::EventImplWithData<          \
-            decltype(EVENT), EVENT, DATATYPE>;                          \
-        static QEvent* create(const DATATYPE& arg) { \
-            return EVENT_CLASS::create(arg);                            \
-        }                                                               \
+#define DEFINE_EVENT_WITH_DATA(EVENT, DATATYPE)                      \
+    template <>                                                      \
+    struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> { \
+        using EVENT_CLASS = seedsm::_inner::EventImplWithData<       \
+            decltype(EVENT), EVENT, DATATYPE>;                       \
+        static QEvent* create(const DATATYPE& arg) {                 \
+            return EVENT_CLASS::create(arg);                         \
+        }                                                            \
     };
 
 // workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56480
@@ -74,25 +68,10 @@ struct _EventCreator {};
 
 namespace seedsm {
 
-__attribute__((format(printf, 1, 2))) static void log(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    SEEDSM_LOG_HANDLER(fmt, ap);
-    va_end(ap);
-}
-
-__attribute__((format(printf, 1, 2))) static void abort(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    SEEDSM_LOG_HANDLER(fmt, ap);
-    va_end(ap);
-    ::abort();
-}
-
 namespace _inner {
 
 // FIXME: user defined EventKind number.
-static const QEvent::Type EventKind =
+static const QEvent::Type TheEventType =
     static_cast<QEvent::Type>(static_cast<int>(QEvent::User) + 1);
 
 template <typename EVENT_ENUM>
@@ -102,14 +81,13 @@ class Event : public QEvent {
 
 public:
     Event(EVENT_ENUM event_type)
-        : QEvent(EventKind)
-        , event_type_(event_type) {}
+        : QEvent(TheEventType), event_type_(event_type) {}
 
     ~Event() {
         if (on_delete_fn_) on_delete_fn_();
     }
 
-    EVENT_ENUM type() const { return event_type_; };
+    EVENT_ENUM kind() const { return event_type_; };
 
     void on_delete(std::function<void()> fn) { on_delete_fn_ = fn; }
 };
@@ -153,13 +131,11 @@ inline EVENT* event_cast(Event<EVENT_ENUM>* ev) {
     return nullptr;
 }
 
-struct State: public QState {
+struct State : public QState {
     State(const std::string& name, QState* parent = nullptr)
-        : QState(parent), name_(name) {
-    }
+        : QState(parent), name_(name) {}
 
-    virtual ~State() {
-    }
+    virtual ~State() {}
 
     const std::string name() { return name_; }
 
@@ -171,16 +147,14 @@ struct State: public QState {
         on_exited_callbacks_.push_back(fn);
     }
 
-
 private:
-
-    void onEntry(QEvent* event) override {
+    void onEntry(QEvent*) override {
         for (auto& fn : on_entered_callbacks_) {
             fn();
         }
     }
 
-    void onExit(QEvent* event) override {
+    void onExit(QEvent*) override {
         for (auto& fn : on_exited_callbacks_) {
             fn();
         }
@@ -195,7 +169,8 @@ private:
 
 template <typename EVENT_CLASS>
 struct TransitionImpl : public QAbstractTransition {
-    explicit TransitionImpl(QState* source = nullptr, QAbstractState* target = nullptr)
+    explicit TransitionImpl(QState* source = nullptr,
+                            QAbstractState* target = nullptr)
         : QAbstractTransition(source), func_list_() {
         if (target) {
             setTargetState(target);
@@ -219,36 +194,39 @@ protected:
     // }
 
     bool eventTest(QEvent* ev) override {
-        if (ev->type() != EventKind) {
+        if (ev->type() != TheEventType) {
             return false;
         }
 
-// TODO
-/*        if (disable) {
-            qDebug() << "Transition Disable";
-            return false;
-        }
-*/
-        auto event = static_cast<EVENT_CLASS*>(ev);
-        if (event->type() != EVENT_CLASS::event_type)
-            return false;
-
-        auto st = dynamic_cast<_inner::State*>(targetState());
-
-// TODO
-/*
-        if (st) {
-            const bool target_enabled = st->isEnabled();
-            if (!target_enabled) {
-                qDebug() << "[State] " << qPrintable(st->name()) << " is disable";
-                for(auto fn: failed_func_list_) {
-                    auto event = static_cast<EVENT_CLASS*>(ev);
-                    event->Exec(fn);
+        // TODO
+        /*        if (disable) {
+                    qDebug() << "Transition Disable";
+                    return false;
                 }
-                return false;
-            }
+        */
+
+        auto event = static_cast<EVENT_CLASS*>(ev);
+        if (event->kind() != EVENT_CLASS::event_type) {
+            return false;
         }
-*/
+
+        //        auto st = dynamic_cast<_inner::State*>(targetState());
+
+        // TODO
+        /*
+                if (st) {
+                    const bool target_enabled = st->isEnabled();
+                    if (!target_enabled) {
+                        qDebug() << "[State] " << qPrintable(st->name()) << " is
+           disable";
+                        for(auto fn: failed_func_list_) {
+                            auto event = static_cast<EVENT_CLASS*>(ev);
+                            event->Exec(fn);
+                        }
+                        return false;
+                    }
+                }
+        */
         return true;
     }
 
@@ -275,9 +253,7 @@ struct StateMachine : public QStateMachine {
         decltype(EVENT), static_cast<int>(EVENT)>::EVENT_CLASS;
 
     StateMachine(const std::string& name)
-        : QStateMachine(nullptr /*parent*/)
-        , states_() {
-    }
+        : QStateMachine(nullptr /*parent*/), name_(name), states_() {}
 
     ~StateMachine() {
         for (auto&& trans : transitions_) {
@@ -285,16 +261,26 @@ struct StateMachine : public QStateMachine {
         }
     }
 
+    void set_parallel(STATE_ID st, bool is_parallel) {
+        state(st)->setChildMode(is_parallel ? QState::ParallelStates
+                                            : QState::ExclusiveStates);
+    }
+
     void create_states(STATE_ID parent, const std::list<STATE_ID>& states) {
         for (auto&& s : states) {
             create_state(id_to_state(parent), s);
         }
+
+        const STATE_ID s = states.front();
+        state(parent)->setInitialState(state(s));
     }
 
     void create_states(const std::list<STATE_ID>& states) {
         for (auto&& s : states) {
             create_state(this, s);
         }
+        const STATE_ID s = states.front();
+        setInitialState(state(s));
     }
 
     template <EVENT_ID E, typename... Args>
@@ -346,7 +332,6 @@ struct StateMachine : public QStateMachine {
     }
 
 private:
-
     bool is_active(_inner::State* state) {
         bool active = false;
         walk([this, &active, state](_inner::State* st) {
@@ -372,6 +357,7 @@ private:
     }
 
 private:
+    const std::string name_;
     std::map<STATE_ID, _inner::State*> states_;
     std::map<std::pair<_inner::State*, EVENT_ID>, QAbstractTransition*>
         transitions_;

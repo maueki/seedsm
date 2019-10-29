@@ -1,11 +1,13 @@
 
 #include <iostream>
 #include <future>
-#include <ev++.h>
-#include <signal.h>
 
 #include "seedsm.h"
 #include "policy.h"
+
+#include <QCoreApplication>
+#include <QDebug>
+#include <QTimer>
 
 using namespace seedsm;
 
@@ -13,7 +15,7 @@ using ST = Policy::STATE;
 using EV = Policy::EVENT;
 
 struct MyStateMachine : public StateMachine<Policy> {
-    MyStateMachine(ev::loop_ref loop)
+    MyStateMachine(QCoreApplication& app)
         : StateMachine("Root") {
         create_states({ST::INIT, ST::ON, ST::OFF, ST::FIN});
 
@@ -23,31 +25,35 @@ struct MyStateMachine : public StateMachine<Policy> {
         add_transition<EV::END>(ST::ON, ST::FIN);
         add_transition<EV::END>(ST::OFF, ST::FIN);
 
-        on_state_entered(ST::INIT, [this] { send_high<EV::INIT_COMP>(); });
-        on_state_entered(ST::FIN, [this] { stop(); });
+        on_state_entered(ST::INIT,
+                         [this] {
+                             send_high<EV::INIT_COMP>();
+                         });
+        on_state_entered(ST::FIN, [this, &app] { app.quit(); });
 
         on_transition<EV::TOGGLE>(ST::ON, [this](const std::string& ev_msg) {
             std::cout << "ST::ON receive EV::TOGGLE: msg = " << ev_msg
                       << std::endl;
         });
+
+        start();
     }
 };
 
 int main(int argc, char* argv[]) {
-    MyStateMachine sm();
-/*
-    ev::dynamic_loop main_loop;
 
-    MyStateMachine sm(main_loop);
+    QCoreApplication app(argc, argv);
 
-    sm.start();
+    MyStateMachine sm(app);
 
-    sm.send<EV::TOGGLE>("toggle1");
-    sm.send<EV::TOGGLE>("toggle2");
-    sm.send<EV::TOGGLE>("toggle3");
-    sm.send<EV::END>();
+    QTimer::singleShot(0, [&sm] {
+                              sm.send<EV::TOGGLE>("toggle1");
+                              sm.send<EV::TOGGLE>("toggle2");
+                              sm.send<EV::TOGGLE>("toggle3");
+                              sm.send<EV::END>();
+                          });
 
-    main_loop.run(0);
-*/
+    app.exec();
+
     return 0;
 }

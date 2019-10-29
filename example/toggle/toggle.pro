@@ -1,4 +1,8 @@
 
+TEMPLATE = app
+
+QT += core
+
 CONFIG += c++17
 
 SOURCES += main.cpp
