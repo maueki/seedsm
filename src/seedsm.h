@@ -34,10 +34,11 @@
 #include <list>
 #include <string>
 #include <map>
-#include <mutex>
-#include <deque>
 
-#include <ev++.h>
+#include <QAbstractTransition>
+#include <QStateMachine>
+#include <QState>
+#include <QEvent>
 
 #ifndef SEEDSM_LOG_HANDLER
 #define SEEDSM_LOG_HANDLER(fmt, arg) \
@@ -51,7 +52,7 @@
     template <>                                                                \
     struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {           \
         using EVENT_CLASS = seedsm::_inner::EventImpl<decltype(EVENT), EVENT>; \
-        static seedsm::_inner::EventBase* create() {                           \
+        static QEvent* create() {                           \
             return seedsm::_inner::EventImpl<decltype(EVENT),                  \
                                              EVENT>::create();                 \
         }                                                                      \
@@ -62,7 +63,7 @@
     struct _EventCreator<decltype(EVENT), static_cast<int>(EVENT)> {    \
         using EVENT_CLASS = seedsm::_inner::EventImplWithData<          \
             decltype(EVENT), EVENT, DATATYPE>;                          \
-        static seedsm::_inner::EventBase* create(const DATATYPE& arg) { \
+        static QEvent* create(const DATATYPE& arg) { \
             return EVENT_CLASS::create(arg);                            \
         }                                                               \
     };
@@ -90,15 +91,19 @@ __attribute__((format(printf, 1, 2))) static void abort(const char* fmt, ...) {
 
 namespace _inner {
 
-class EventBase {};
+// FIXME: user defined EventKind number.
+static const QEvent::Type EventKind =
+    static_cast<QEvent::Type>(static_cast<int>(QEvent::User) + 1);
 
 template <typename EVENT_ENUM>
-class Event : public EventBase {
+class Event : public QEvent {
     EVENT_ENUM event_type_;
     std::function<void()> on_delete_fn_;
 
 public:
-    Event(EVENT_ENUM event_type) : event_type_(event_type) {}
+    Event(EVENT_ENUM event_type)
+        : QEvent(EventKind)
+        , event_type_(event_type) {}
 
     ~Event() {
         if (on_delete_fn_) on_delete_fn_();
@@ -148,80 +153,13 @@ inline EVENT* event_cast(Event<EVENT_ENUM>* ev) {
     return nullptr;
 }
 
-struct State {
-    State(const std::string& name, State* parent = nullptr)
-        : name_(name), parent_(parent) {
-        if (parent) {
-            parent->add_child(this);
-        }
+struct State: public QState {
+    State(const std::string& name, QState* parent = nullptr)
+        : QState(parent), name_(name) {
     }
 
     virtual ~State() {
-        for (auto&& child : children_) {
-            delete child;
-        }
     }
-
-    void enter(EventBase* event) {
-        assert(!is_active_);
-
-        if (parent_) parent_->enter_child(event, this);
-
-        log("enter state: %s", name_.c_str());
-        is_active_ = true;
-
-        do_enter_callback(event);
-
-        if (is_parallel_) {
-            for (auto&& child : children_) {
-                child->enter(event);
-            }
-            active_child_ = nullptr;
-        } else {
-            if (!children_.empty()) {
-                active_child_ = children_.front();
-                active_child_->enter(event);
-            }
-        }
-    }
-
-    void exit(EventBase* event) {
-        assert(is_active_);
-
-        if (active_child_) {
-            active_child_->exit(event);
-            active_child_ = nullptr;
-        }
-
-        if (is_parallel_) {
-            for (auto&& child : children_) {
-                assert(child->is_active());
-                child->exit(event);
-            }
-        }
-
-        log("exit state: %s", name_.c_str());
-        is_active_ = false;
-
-        do_exit_callback(event);
-    }
-
-    void walk(std::function<void(State*)> fn) {
-        if (!is_active_) {
-            return;
-        }
-
-        if (active_child_) {
-            active_child_->walk(fn);
-        }
-
-        fn(this);
-    }
-
-    const bool is_active() const { return is_active_; }
-
-    const State* parent() const { return parent_; }
-    State* parent() { return parent_; }
 
     const std::string name() { return name_; }
 
@@ -233,84 +171,36 @@ struct State {
         on_exited_callbacks_.push_back(fn);
     }
 
-    void set_parallel(bool is_par) {
-        assert(!is_active_);
-        is_parallel_ = is_par;
-    }
-
-    bool is_parallel() const { return is_parallel_; }
 
 private:
-    void add_child(State* child) {
-        if (!child) return;
 
-        children_.push_back(child);
-    }
-
-    void do_enter_callback(EventBase* event) {
+    void onEntry(QEvent* event) override {
         for (auto& fn : on_entered_callbacks_) {
             fn();
         }
     }
 
-    void do_exit_callback(EventBase* event) {
+    void onExit(QEvent* event) override {
         for (auto& fn : on_exited_callbacks_) {
             fn();
         }
     }
 
-    void enter_child(EventBase* event, State* child) {
-        active_child_ = child;
-
-        if (is_active_) return;
-
-        // FIXME: Error when having parallel states.
-
-        if (parent_) parent_->enter_child(event, this);
-
-        log("enter state: %s", name_.c_str());
-
-        is_active_ = true;
-        do_enter_callback(event);
-    }
-
 private:
     std::string name_;
-    State* parent_;
-    bool is_active_ = false;
-    std::list<State*> children_;
-    State* active_child_ = nullptr;  // not used in parallel state
-    bool is_parallel_ = false;
 
     std::list<std::function<void()>> on_entered_callbacks_;
     std::list<std::function<void()>> on_exited_callbacks_;
 };
 
-struct Transition {
-    Transition(State* source = nullptr, State* target = nullptr)
-        : source_(source), target_(target) {}
-
-    // virtual bool event_test(Event* ev) = 0;
-
-    virtual ~Transition() {}
-
-    State* source_state() { return source_; }
-    const State* source_state() const { return source_; }
-
-    State* target_state() { return target_; }
-    const State* target_state() const { return target_; }
-
-    virtual void do_callback(EventBase* ev) = 0;
-
-private:
-    State* source_;
-    State* target_;
-};
-
 template <typename EVENT_CLASS>
-struct TransitionImpl : public Transition {
-    explicit TransitionImpl(State* source = nullptr, State* target = nullptr)
-        : Transition(source, target), func_list_() {}
+struct TransitionImpl : public QAbstractTransition {
+    explicit TransitionImpl(QState* source = nullptr, QAbstractState* target = nullptr)
+        : QAbstractTransition(source), func_list_() {
+        if (target) {
+            setTargetState(target);
+        }
+    }
 
     void on_transition(typename EVENT_CLASS::callback_type fn) {
         func_list_.push_back(fn);
@@ -328,7 +218,41 @@ protected:
     //     return true;
     // }
 
-    void do_callback(EventBase* ev) override {
+    bool eventTest(QEvent* ev) override {
+        if (ev->type() != EventKind) {
+            return false;
+        }
+
+// TODO
+/*        if (disable) {
+            qDebug() << "Transition Disable";
+            return false;
+        }
+*/
+        auto event = static_cast<EVENT_CLASS*>(ev);
+        if (event->type() != EVENT_CLASS::event_type)
+            return false;
+
+        auto st = dynamic_cast<_inner::State*>(targetState());
+
+// TODO
+/*
+        if (st) {
+            const bool target_enabled = st->isEnabled();
+            if (!target_enabled) {
+                qDebug() << "[State] " << qPrintable(st->name()) << " is disable";
+                for(auto fn: failed_func_list_) {
+                    auto event = static_cast<EVENT_CLASS*>(ev);
+                    event->Exec(fn);
+                }
+                return false;
+            }
+        }
+*/
+        return true;
+    }
+
+    void onTransition(QEvent* ev) override {
         for (auto fn : func_list_) {
             auto event = static_cast<EVENT_CLASS*>(ev);
             event->exec(fn);
@@ -342,7 +266,7 @@ private:
 }  // _inner
 
 template <typename STATE_POLICY>
-struct StateMachine : protected _inner::State {
+struct StateMachine : public QStateMachine {
     using STATE_ID = typename STATE_POLICY::STATE;
     using EVENT_ID = typename STATE_POLICY::EVENT;
 
@@ -350,27 +274,14 @@ struct StateMachine : protected _inner::State {
     using event_class = typename _EventCreator<
         decltype(EVENT), static_cast<int>(EVENT)>::EVENT_CLASS;
 
-    StateMachine(const std::string& name, ev::loop_ref loop)
-        : State(name)
-        , loop_(loop)
-        , states_()
-        , send_event_(std::unique_ptr<ev::async>(new ev::async(loop)))
-        , init_event_(std::unique_ptr<ev::async>(new ev::async(loop))) {
-        send_event_->set<StateMachine, &StateMachine::received>(this);
-        init_event_->set<StateMachine, &StateMachine::initialize>(this);
+    StateMachine(const std::string& name)
+        : QStateMachine(nullptr /*parent*/)
+        , states_() {
     }
 
     ~StateMachine() {
         for (auto&& trans : transitions_) {
             delete trans.second;
-        }
-
-        for (auto&& ev : event_queue_) {
-            delete ev;
-        }
-
-        for (auto&& ev : high_event_queue_) {
-            delete ev;
         }
     }
 
@@ -386,34 +297,16 @@ struct StateMachine : protected _inner::State {
         }
     }
 
-    void set_parallel(bool is_par) { this->set_parallel(is_par); }
-
-    void set_parallel(STATE_ID st, bool is_par) {
-        state(st)->set_parallel(is_par);
-    }
-
-    void start() {
-        init_event_->start();
-        init_event_->send();
-
-        send_event_->start();
-    }
-
-    void stop() {
-        send_event_->stop();
-        init_event_->stop();
-    }
-
     template <EVENT_ID E, typename... Args>
     void send(Args&&... args) {
         auto event = event_class<E>::create(std::forward<Args>(args)...);
-        post_event(event);
+        postEvent(event);
     }
 
     template <EVENT_ID E, typename... Args>
     void send_high(Args&&... args) {
         auto event = event_class<E>::create(std::forward<Args>(args)...);
-        post_high_event(event);
+        postEvent(event, QStateMachine::HighPriority);
     }
 
     void on_state_entered(STATE_ID st, std::function<void()> fn) {
@@ -453,44 +346,6 @@ struct StateMachine : protected _inner::State {
     }
 
 private:
-    void post_event(_inner::EventBase* ev) {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
-        event_queue_.push_back(ev);
-        send_event_->send();
-    }
-
-    void post_high_event(_inner::EventBase* ev) {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
-        high_event_queue_.push_back(ev);
-        send_event_->send();
-    }
-
-    _inner::EventBase* pop_event() {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
-        if (!high_event_queue_.empty()) {
-            auto ev = high_event_queue_.front();
-            high_event_queue_.pop_front();
-            return ev;
-        }
-
-        if (event_queue_.empty()) return nullptr;
-
-        auto ev = event_queue_.front();
-        event_queue_.pop_front();
-        return ev;
-    }
-
-    const std::list<_inner::Transition*> collect_transition(EVENT_ID ev) {
-        std::list<_inner::Transition*> trans;
-
-        walk([this, ev, &trans](_inner::State* st) {
-            if (transitions_.count({st, ev}) > 0) {
-                trans.push_back(transitions_[{st, ev}]);
-            }
-        });
-
-        return trans;
-    }
 
     bool is_active(_inner::State* state) {
         bool active = false;
@@ -501,71 +356,6 @@ private:
         });
 
         return active;
-    }
-
-    void do_transition(_inner::EventBase* ev, _inner::State* source,
-                       _inner::State* target) {
-        assert(source);
-        if (source == target) {
-            source->exit(ev);
-            auto event = static_cast<_inner::Event<EVENT_ID>*>(ev);
-            auto trans = transitions_[{source, event->type()}];
-            trans->do_callback(ev);
-
-            target->enter(ev);
-            return;
-        }
-
-        _inner::State* prev_s = nullptr;
-        for (_inner::State* s = source; s != nullptr; s = s->parent()) {
-            for (_inner::State* t = target; t != nullptr; t = t->parent()) {
-                if (s == t) {
-                    if (prev_s) {
-                        prev_s->exit(ev);
-                    }
-
-                    auto event = static_cast<_inner::Event<EVENT_ID>*>(ev);
-                    auto trans = transitions_[{source, event->type()}];
-                    trans->do_callback(ev);
-
-                    target->enter(ev);
-                    return;
-                }
-            }
-            prev_s = s;
-        }
-
-        return;  // don't reach
-    }
-
-    void received() {
-        for (;;) {
-            auto ev = std::unique_ptr<_inner::Event<EVENT_ID>>(
-                static_cast<_inner::Event<EVENT_ID>*>(pop_event()));
-            if (!ev) return;
-
-            auto ev_type = ev->type();
-            auto trans = collect_transition(ev_type);
-
-            for (auto&& tr : trans) {
-                auto source = tr->source_state();
-                auto target = tr->target_state();
-
-                if (target) {
-                    if (is_active(source)) {
-                        do_transition(ev.get(), source, target);
-                    }
-                } else {
-                    tr->do_callback(ev.get());
-                }
-            }
-        }
-    }
-
-    void initialize() {
-        log("initialize");
-
-        enter(nullptr);
     }
 
     _inner::State* state(STATE_ID st) {
@@ -582,18 +372,11 @@ private:
     }
 
 private:
-    ev::loop_ref loop_;
     std::map<STATE_ID, _inner::State*> states_;
-    std::map<std::pair<_inner::State*, EVENT_ID>, _inner::Transition*>
+    std::map<std::pair<_inner::State*, EVENT_ID>, QAbstractTransition*>
         transitions_;
 
-    std::unique_ptr<ev::async> init_event_;
-    std::unique_ptr<ev::async> send_event_;
-    std::mutex queue_mutex_;
-    std::deque<_inner::EventBase*> event_queue_;
-    std::deque<_inner::EventBase*> high_event_queue_;
-
-    void create_state(_inner::State* parent, STATE_ID child) {
+    void create_state(QState* parent, STATE_ID child) {
         assert(states_.count(child) == 0);
 
         states_[child] = new _inner::State(to_string(child), parent);

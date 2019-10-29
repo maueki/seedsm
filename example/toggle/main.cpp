@@ -14,7 +14,7 @@ using EV = Policy::EVENT;
 
 struct MyStateMachine : public StateMachine<Policy> {
     MyStateMachine(ev::loop_ref loop)
-        : StateMachine("Root", loop) {
+        : StateMachine("Root") {
         create_states({ST::INIT, ST::ON, ST::OFF, ST::FIN});
 
         add_transition<EV::INIT_COMP>(ST::INIT, ST::OFF);
@@ -34,6 +34,8 @@ struct MyStateMachine : public StateMachine<Policy> {
 };
 
 int main(int argc, char* argv[]) {
+    MyStateMachine sm();
+/*
     ev::dynamic_loop main_loop;
 
     MyStateMachine sm(main_loop);
@@ -46,6 +48,6 @@ int main(int argc, char* argv[]) {
     sm.send<EV::END>();
 
     main_loop.run(0);
-
+*/
     return 0;
 }
