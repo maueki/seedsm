@@ -4,11 +4,11 @@
 
 ## About
 
-Seedsm(Simple and Easy Event Driven State Machine) is a C++ header only state machine library based on [libev](http://software.schmorp.de/pkg/libev.html).
+Seedsm(Simple and Easy Event Driven State Machine) is a C++ header only state machine library based on Qt5
 
 ## Requirements
 
-* [libev](http://software.schmorp.de/pkg/libev.html)
+* Qt5
 * C++11 or higher
 
 ## Usage
