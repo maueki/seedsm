@@ -24,20 +24,14 @@
 
 #pragma once
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstdarg>
-#include <cstring>
 #include <cassert>
-
-#include <memory>
 #include <functional>
 #include <list>
 #include <string>
 #include <map>
 
-#include <QAbstractTransition>
 #include <QStateMachine>
+#include <QAbstractTransition>
 #include <QState>
 #include <QEvent>
 #include <QDebug>
