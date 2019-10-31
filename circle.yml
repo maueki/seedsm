@@ -3,10 +3,10 @@ version: 2
 jobs:
   build:
     docker:
-      - image: ubuntu:zesty
+      - image: ubuntu:bionic
     steps:
       - run: apt-get update
-      - run: apt-get -y install build-essential cmake libev-dev libgtest-dev
+      - run: apt-get -y install build-essential cmake libev-dev libgtest-dev qt5-default
       - run: mkdir -p /tmp/build && cd /tmp/build && cmake /usr/src/gtest && make && make install
       - checkout
       - run: ./run-test.sh
